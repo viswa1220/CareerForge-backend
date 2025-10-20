@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/* ========= Enums ========= */
+
+enum ApplicationStatus {
+  Applied
+  Interview
+  Offer
+  Rejected
+}
+
+enum ResumeTemplate {
+  classic_one
+  modern_two
+}
+
+/* ========= Core Models ========= */
+
+model User {
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String         @unique
+  password     String
+  isVerified   Boolean        @default(false)
+  resumes      Resume[]
+  applications Application[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([email])
+}
+
+model Resume {
+  id             Int            @id @default(autoincrement())
+  title          String
+  summary        String?
+  template       ResumeTemplate?
+  colorScheme    String?        // e.g. '#1E293B'
+  qualifications Json?          // optional bullets/paragraphs
+  userId         Int
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One-to-many sections
+  skills         Skill[]
+  experiences    Experience[]
+  projects       Project[]
+  education      Education[]
+
+  // Applications that used this resume
+  applications   Application[]
+
+  // Dynamic, user-defined sections
+  customSections Json?
+
+  createdAt      DateTime       @default(now())
+  // OPTION A (safe first migration if data exists): make it optional
+  // lastUpdated    DateTime?      @updatedAt
+  // OPTION B (final desired): required with default + @updatedAt
+  lastUpdated    DateTime       @default(now()) @updatedAt
+
+  @@index([userId])
+}
+
+model Skill {
+  id        Int      @id @default(autoincrement())
+  category  String   // e.g. "Programming", "Soft Skills"
+  name      String   // e.g. "React"
+  resumeId  Int
+  resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Avoid duplicate skill names within same category for a resume
+  @@unique([resumeId, category, name])
+  @@index([resumeId, category])
+}
+
+model Experience {
+  id          Int      @id @default(autoincrement())
+  jobTitle    String
+  company     String
+  location    String?
+  startDate   String?  // keep as String for simplicity (e.g., "Jan 2023")
+  endDate     String?
+  description String?
+  resumeId    Int
+  resume      Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  sortOrder   Int      @default(0)  // for frontend ordering if needed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([resumeId])
+}
+
+model Project {
+  id        Int       @id @default(autoincrement())
+  name      String
+  summary   String?
+  techStack String[]
+  link      String?
+  resumeId  Int
+  resume    Resume    @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([resumeId, name])
+}
+
+model Education {
+  id          Int      @id @default(autoincrement())
+  degree      String
+  institution String
+  startYear   String?
+  endYear     String?
+  grade       String?
+  resumeId    Int
+  resume      Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([resumeId, institution])
+}
+
+model Application {
+  id          Int               @id @default(autoincrement())
+  company     String
+  position    String
+  status      ApplicationStatus @default(Applied)
+  appliedDate DateTime          @default(now())
+  resumeId    Int
+  resume      Resume            @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId, status])
+  @@index([resumeId])
+}
